@@ -3,7 +3,6 @@
 ###################################################################
 # Imports
 
-#from scapy.all import *
 import pyshark
 import os
 import gc
@@ -17,45 +16,6 @@ deleteExistingFile = True
 
 ###################################################################
 # Funcs
-
-def read_packets(filepath):
-	size = os.path.getsize(filepath)
-	size = size / 1024 / 1024 # to MB
-	print("Reading packets from file ({0:.2f} MB)".format(size))
-	if (size > 50):
-		print("\tThis can take a bit :)")
-	try:
-		#packets = rdpcap(filepath)
-		packets = pyshark.FileCapture(filepath, only_summaries=True) #pyshark.FileCapture(filepath, only_summaries=True) #rdpcap(filepath)
-		#print("PCAP: {}".format(repr(packets[999])))
-		return packets
-	except MemoryError:
-		return None
-	except Scapy_Exception:
-		print("This PCAP is invalid!")
-		return None
-	#except:
-	#	print("Something went wrong reading the pcap file :(")
-	#	return None
-
-def get_protocol(packet):
-	counter = 0
-	ret = "Invalid"
-	while True:
-		layer = packet.getlayer(counter)
-		if layer is None:
-			if (ret == "TCP"):
-				if (packet[TCP].sport == 80) or (packet[TCP].dport == 80):
-					ret = "HTTP"
-				if (packet[TCP].sport == 443) or (packet[TCP].dport == 443):
-					ret = "HTTPS"
-			return ret
-
-		ret = layer.name
-		counter += 1
-
-def get_bytes(packet):
-	return len(packet)
 
 def get_destination_ip(packet):
 	try:
@@ -140,46 +100,28 @@ for file in os.listdir(pcapdir):
 	destinationIPCounters = {}
 
 	# Reading packets in dir
-	#all_packets = read_packets(pcapdir + file)
-	#if (all_packets is None):
-	#	print("Failed to analyze {}; packets cannot be read".format(file))
-	#	continue
-
 	try:
-		all_packets = pyshark.FileCapture(pcapdir + file, only_summaries=True) #pyshark.FileCapture(filepath, only_summaries=True) #rdpcap(filepath)
+		all_packets = pyshark.FileCapture(pcapdir + file, only_summaries=True)
 	except:
-		print("Failed to read pcap file :(")
+		print("Error: Failed to read pcap file!")
 		continue
 
 	# Analyze packets
 	print("Analyzing packets that were read...")
 	i = 0
-	#packet_count = len(all_packets)
-	#print("Found {} packets".format(packet_count))
-	#interval = 1 + round(packet_count / 5)
 	try:
 		for packet in all_packets:
-			#if (i % interval == 0):
-			#print("\tAnalyzing packet {}...".format(i))
-
-			#print("{}".format(packet))
-			#2 0.013873 8.8.8.8 10.20.30.40 DNS 136 Standard query response 0x8024 A graph.facebook.com CNAME api.facebook.com CNAME star.c10r.facebook.com A 31.13.64.16
+			# Read packet data
 			packet = str(packet).split(" ")
-			protocol = packet[4] #get_protocol(packet)
-			bytes = int(packet[5]) #packet.length #get_bytes(packet)
+			protocol = packet[4]
+			bytes = int(packet[5])
 
-			s_ip = packet[2]
+			s_ip = packet[2] # Find destination IP
 			destination_ip = "UNKNOWN"
-			if ("192.168" in s_ip) or ("145.100." in s_ip) or ("10.20.30" in s_ip):
+			if ("192.168" in s_ip) or ("10.0." in s_ip):
 				destination_ip = packet[3]
 			else:
 				destination_ip = packet[2]
-
-			#destination_ip = "NOT_RECORDED" #get_destination_ip(packet)
-
-			#protocol = packet[6] #get_protocol(packet)
-			#bytes = packet[4] #get_bytes(packet)
-			#destination_ip = packet[8] #get_destination_ip(packet)
 
 			# Stats
 			# Application
@@ -210,10 +152,10 @@ for file in os.listdir(pcapdir):
 
 			i += 1
 	except pyshark.capture.capture.TSharkCrashException:
-		print("pyshark crashed ¯\_(ツ)_/¯")
+		print("Pyshark seemed to have crashed")
 		continue
 	except:
-		print("Cannot read packets ¯\_(ツ)_/¯")
+		print("Cannot read packets - unknown exception")
 		continue
 
 	# Application results
@@ -250,5 +192,3 @@ print("Saving total results")
 store_results(statsdir, "ALL_GAMES", totalProtocolCounters, totalProtocolBytes, totalDestinationIPCounters)
 
 print("Done analyzing files!\n")
-
-#store_results(protocol, bytes, destination_ip)
